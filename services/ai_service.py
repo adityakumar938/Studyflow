@@ -50,3 +50,45 @@ def _validate_topics(raw_text):
     except Exception as e:
         raise ValueError(f"Bad AI output: {e}")
     return topics
+
+def _call_gemini_json(prompt):
+    api_key = os.getenv("GEMINI_API_KEY")
+    model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY missing. Check your .env file.")
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(timeout=60000),
+    )
+    try:
+        response = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(response_mime_type="application/json"),
+        )
+    except Exception as e:
+        raise RuntimeError(f"Gemini call failed: {type(e).__name__}: {e}")
+    return response.text
+
+
+def extract_questions(pyq_text):
+    """Send PYQ text to Gemini. Return a validated list of question dicts."""
+    prompt = f"""Extract every exam question from this question paper.
+Return ONLY JSON in this format:
+{{"questions": [{{"question_text": "...", "year": 2023, "marks": 5}}]}}
+Rules: year is the exam year as a number. marks is a number.
+Copy the question text exactly. Do not invent questions.
+
+QUESTION PAPER:
+{pyq_text}
+"""
+    raw = _call_gemini_json(prompt)
+    try:
+        questions = json.loads(raw)["questions"]
+        for q in questions:
+            assert isinstance(q["question_text"], str) and q["question_text"].strip()
+            assert isinstance(q["year"], int)
+            assert isinstance(q["marks"], (int, float))
+    except Exception as e:
+        raise ValueError(f"Bad AI output: {e}")
+    return questions
