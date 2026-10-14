@@ -92,3 +92,36 @@ QUESTION PAPER:
     except Exception as e:
         raise ValueError(f"Bad AI output: {e}")
     return questions
+
+def map_questions_to_topics(questions, topics):
+    """Return a dict: question index -> topic index (-1 means no match)."""
+    topic_list = "\n".join(f"{i}: {t['name']}" for i, t in enumerate(topics))
+    question_list = "\n".join(f"{i}: {q['question_text']}" for i, q in enumerate(questions))
+
+    prompt = f"""Match each exam question to the syllabus topic it belongs to.
+Return ONLY JSON in this format:
+{{"mappings": [{{"question_index": 0, "topic_index": 0}}]}}
+Rules: use only the numbers given below. Give one topic per question.
+If no topic fits, use -1. Do not invent numbers.
+
+TOPICS:
+{topic_list}
+
+QUESTIONS:
+{question_list}
+"""
+    raw = _call_gemini_json(prompt)
+    try:
+        mappings = json.loads(raw)["mappings"]
+        result = {}
+        for m in mappings:
+            qi, ti = m["question_index"], m["topic_index"]
+            assert isinstance(qi, int) and 0 <= qi < len(questions)
+            assert isinstance(ti, int) and -1 <= ti < len(topics)
+            result[qi] = ti
+    except Exception as e:
+        raise ValueError(f"Bad AI output: {e}")
+
+    for qi in range(len(questions)):
+        result.setdefault(qi, -1)
+    return result
