@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="container py-4 py-lg-5">
+
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-4">
+    <div>
+      <h1 class="font-display h2 mb-1">Study dashboard</h1>
+      <p class="text-secondary mb-0">Live analysis of <code>syllabus.pdf</code> + <code>pyq.pdf</code> — no sample numbers.</p>
+    </div>
+    <span class="badge sf-badge-live"><i class="bi bi-broadcast me-1"></i>Live API data</span>
+  </div>
+
+  <!-- Hours control -->
+  <div class="card sf-hours-card mb-4">
+    <div class="card-body p-4">
+      <div class="row g-3 align-items-end">
+        <div class="col-sm-auto">
+          <label for="hours-input" class="form-label fw-semibold mb-1">Total study hours</label>
+          <input type="number" class="form-control sf-hours-input" id="hours-input" min="1" max="500" step="1" value="20" inputmode="numeric">
+          <div class="invalid-feedback">Enter a whole number between 1 and 500.</div>
+        </div>
+        <div class="col-sm-auto">
+          <div class="d-flex gap-2 flex-wrap" role="group" aria-label="Hour presets">
+            <button type="button" class="btn btn-outline-ink btn-sm" data-hours="10">10</button>
+            <button type="button" class="btn btn-outline-ink btn-sm" data-hours="20">20</button>
+            <button type="button" class="btn btn-outline-ink btn-sm" data-hours="40">40</button>
+            <button type="button" class="btn btn-outline-ink btn-sm" data-hours="60">60</button>
+          </div>
+        </div>
+        <div class="col-sm-auto">
+          <button type="button" class="btn btn-primary" id="rebuild-btn">
+            <span class="spinner-border spinner-border-sm me-2 d-none" id="plan-spinner" aria-hidden="true"></span>
+            <i class="bi bi-arrow-repeat me-1" id="plan-btn-icon"></i><span id="plan-btn-label">Rebuild plan</span>
+          </button>
+        </div>
+        <div class="col-sm-auto ms-sm-auto">
+          <a class="btn btn-highlight" id="export-link" href="/export-pdf?hours=20" target="_blank" rel="noopener">
+            <i class="bi bi-file-earmark-pdf me-1"></i>Export PDF
+          </a>
+        </div>
+      </div>
+      <p class="small text-secondary mt-3 mb-0"><i class="bi bi-info-circle me-1"></i>The first analysis can take 30–60 seconds while Gemini reads the PDFs. The PDF is generated on demand.</p>
+    </div>
+  </div>
+
+  <!-- Summary strip (filled from real responses) -->
+  <div class="row row-cols-2 row-cols-lg-4 g-3 mb-4">
+    <div class="col"><div class="card sf-mini-stat h-100"><div class="card-body">
+      <div class="sf-mini-value font-display" id="sum-units">—</div><div class="small text-secondary">Units found</div>
+    </div></div></div>
+    <div class="col"><div class="card sf-mini-stat h-100"><div class="card-body">
+      <div class="sf-mini-value font-display" id="sum-questions">—</div><div class="small text-secondary">Questions mapped</div>
+    </div></div></div>
+    <div class="col"><div class="card sf-mini-stat h-100"><div class="card-body">
+      <div class="sf-mini-value font-display" id="sum-topics">—</div><div class="small text-secondary">Topics hit by PYQs</div>
+    </div></div></div>
+    <div class="col"><div class="card sf-mini-stat h-100"><div class="card-body">
+      <div class="sf-mini-value font-display" id="sum-hours">—</div><div class="small text-secondary">Hours allocated</div>
+    </div></div></div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Plan -->
+    <div class="col-lg-7">
+      <div class="card h-100" id="panel-plan">
+        <div class="card-header sf-card-head d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-calendar-week me-2 sf-head-icon"></i>Recommended study plan</span>
+          <span class="sf-endpoint-chip">GET /plan</span>
+        </div>
+        <div class="card-body">
+          <div data-loading>
+            <div class="d-flex align-items-center gap-2 small text-secondary mb-3">
+              <span class="spinner-border spinner-border-sm"></span>Allocating hours by exam weightage…
+            </div>
+            <div class="placeholder-glow"><span class="placeholder col-12 mb-2"></span><span class="placeholder col-9 mb-2"></span><span class="placeholder col-11 mb-2"></span><span class="placeholder col-7"></span></div>
+          </div>
+          <div data-error hidden>
+            <div class="sf-panel-error">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+              <div>
+                <strong>Couldn't build the plan.</strong>
+                <p class="small mb-1" data-error-text></p>
+                <p class="small text-secondary mb-2">Common causes: missing <code>GEMINI_API_KEY</code> in <code>.env</code>, API quota/rate limits, or a scanned (image-only) PDF.</p>
+                <button type="button" class="btn btn-outline-ink btn-sm" data-retry="plan"><i class="bi bi-arrow-clockwise me-1"></i>Retry</button>
+              </div>
+            </div>
+          </div>
+          <div data-content hidden id="plan-body"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Weightages -->
+    <div class="col-lg-5">
+      <div class="card h-100" id="panel-weightages">
+        <div class="card-header sf-card-head d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-graph-up-arrow me-2 sf-head-icon"></i>Unit weightage</span>
+          <span class="sf-endpoint-chip">GET /weightages</span>
+        </div>
+        <div class="card-body">
+          <div data-loading>
+            <div class="d-flex align-items-center gap-2 small text-secondary mb-3">
+              <span class="spinner-border spinner-border-sm"></span>Gemini is reading your PDFs…
+            </div>
+            <div class="placeholder-glow"><span class="placeholder col-12 mb-2"></span><span class="placeholder col-8 mb-2"></span><span class="placeholder col-10 mb-2"></span><span class="placeholder col-6"></span></div>
+          </div>
+          <div data-error hidden>
+            <div class="sf-panel-error">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+              <div>
+                <strong>Couldn't load weightages.</strong>
+                <p class="small mb-1" data-error-text></p>
+                <button type="button" class="btn btn-outline-ink btn-sm" data-retry="weightages"><i class="bi bi-arrow-clockwise me-1"></i>Retry</button>
+              </div>
+            </div>
+          </div>
+          <div data-content hidden id="weightage-body"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Frequencies -->
+    <div class="col-12">
+      <div class="card" id="panel-frequencies">
+        <div class="card-header sf-card-head d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-bullseye me-2 sf-head-icon"></i>PYQ topic frequencies</span>
+          <span class="sf-endpoint-chip">GET /frequencies</span>
+        </div>
+        <div class="card-body">
+          <div data-loading>
+            <div class="d-flex align-items-center gap-2 small text-secondary mb-3">
+              <span class="spinner-border spinner-border-sm"></span>Counting how often each topic appeared…
+            </div>
+            <div class="placeholder-glow"><span class="placeholder col-11 mb-2"></span><span class="placeholder col-9 mb-2"></span><span class="placeholder col-12 mb-2"></span><span class="placeholder col-7"></span></div>
+          </div>
+          <div data-error hidden>
+            <div class="sf-panel-error">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+              <div>
+                <strong>Couldn't load frequencies.</strong>
+                <p class="small mb-1" data-error-text></p>
+                <button type="button" class="btn btn-outline-ink btn-sm" data-retry="frequencies"><i class="bi bi-arrow-clockwise me-1"></i>Retry</button>
+              </div>
+            </div>
+          </div>
+          <div data-content hidden id="freq-body"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="small text-secondary mt-4 mb-0"><i class="bi bi-plug me-1"></i>Data source: the live JSON API on this server. Values are rendered exactly as returned — nothing is hardcoded.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/dashboard.js') }}"></script>
+{% endblock %}

@@ -1,4 +1,7 @@
 venv/
+.venv/
 .env
 __pycache__/
 uploads/
+.vscode/
+study_plan_report.pdf

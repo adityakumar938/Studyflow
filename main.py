@@ -1,17 +1,42 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from pathlib import Path
+from datetime import date
+import os
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
 from services.pyq_service import PYQService
 from services.planner_service import PlannerService
 from services.report_service import ReportService
-import os
+
+BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(title="Study Flow API", version="1.0")
+
+# ── Frontend wiring (Member 2) ──────────────────────────────────────
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 pyq_service = PYQService("syllabus.pdf", "pyq.pdf")
 planner_service = PlannerService("syllabus.pdf", "pyq.pdf")
 report_service = ReportService("syllabus.pdf", "pyq.pdf")
 
-@app.get("/")
+
+# ── HTML pages (Member 2) ───────────────────────────────────────────
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    return templates.TemplateResponse(request, "index.html", {"current_year": date.today().year})
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request):
+    return templates.TemplateResponse(request, "dashboard.html", {"current_year": date.today().year})
+
+
+# ── JSON API (Member 3 — unchanged; only the index moved to /api) ───
+@app.get("/api")
 def read_root():
     return {
         "project": "Study Flow API",
