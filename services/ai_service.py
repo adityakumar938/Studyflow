@@ -10,7 +10,7 @@ load_dotenv()
 def extract_topics(syllabus_text):
     """Send syllabus text to Gemini. Return a validated list of topic dicts."""
     api_key = os.getenv("GEMINI_API_KEY")
-    model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+    model = "gemini-2.0-flash"
 
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY missing. Check your .env file.")
@@ -53,7 +53,7 @@ def _validate_topics(raw_text):
 
 def _call_gemini_json(prompt):
     api_key = os.getenv("GEMINI_API_KEY")
-    model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+    model = "gemini-2.0-flash"
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY missing. Check your .env file.")
     client = genai.Client(
@@ -66,10 +66,9 @@ def _call_gemini_json(prompt):
             contents=prompt,
             config=types.GenerateContentConfig(response_mime_type="application/json"),
         )
+        return response.text  # <-- Indented inside the function!
     except Exception as e:
         raise RuntimeError(f"Gemini call failed: {type(e).__name__}: {e}")
-    return response.text
-
 
 def extract_questions(pyq_text):
     """Send PYQ text to Gemini. Return a validated list of question dicts."""
